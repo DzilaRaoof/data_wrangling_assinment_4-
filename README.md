@@ -1,4 +1,4 @@
-# Reject Option Classification for Fair Classification – Adult, German Credit, COMPAS (run 3)
+#  Classification for Fair Classification – Adult, German Credit, COMPAS (run 3)
 
 Code for Assignment 4 (Algorithmic Fairness), written from scratch with Genie Code. It evaluates the **Reject Option based Classification (ROC)** post-processing algorithm of
 F. Kamiran, A. Karim and X. Zhang, *Decision Theory for Discrimination-Aware Classification*, IEEE ICDM 2012.
