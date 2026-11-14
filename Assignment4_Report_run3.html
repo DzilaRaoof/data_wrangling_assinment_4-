@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<title>Assignment 4 - Reject Option Classification (run 3)</title>
+<style>
+@page { size: A4; margin: 18mm 17mm; }
+body { font-family: Georgia, 'Times New Roman', serif; font-size: 10.5pt; line-height: 1.38; max-width: 175mm; margin: auto; color: #111; }
+h1 { font-size: 15pt; margin: 0 0 2mm; } h2 { font-size: 12.5pt; margin: 5mm 0 1.5mm; border-bottom: 1px solid #999; }
+h3 { font-size: 11pt; margin: 3mm 0 1mm; }
+p { margin: 1mm 0 2mm; text-align: justify; }
+table { border-collapse: collapse; width: 100%; font-size: 9.3pt; margin: 2mm 0 3mm; }
+th, td { border: 1px solid #aaa; padding: 1mm 1.6mm; text-align: center; } th { background: #eee; } td.l { text-align: left; }
+.check { background: #fff2b3; font-size: 9pt; padding: 0 1mm; }
+.note { font-size: 9pt; color: #444; }
+.pb { page-break-before: always; }
+code { font-size: 9pt; }
+</style></head><body>
+
+<h1>Assignment 4 - Algorithmic Fairness: Reject Option Classification</h1>
+<p class="note">Student: [name, student number] &middot; Code: [GitHub link] &middot; Run 3, generated with Genie Code from scratch. Yellow <span class="check">[CHECK]</span> marks are claims about the paper that you must confirm in the PDF and then highlight; remove the marks afterwards.</p>
+
+<h2>Part I - Paper review</h2>
+<p><b>Paper.</b> F. Kamiran, A. Karim and X. Zhang, "Decision Theory for Discrimination-Aware Classification", <i>Proc. IEEE 12th International Conference on Data Mining (ICDM)</i>, 2012, pp. 924-929. <span class="check">[CHECK pages]</span></p>
+
+<h3>1. Problem and category</h3>
+<p>Classifiers trained on historical data reproduce the discrimination present in that data: members of a deprived group (e.g. women) receive the desirable label less often than members of the favoured group. Earlier work removed this either by changing the training data (massaging, reweighing, sampling) or by changing the learning algorithm (discrimination-aware trees, regularised models). The paper proposes two methods grounded in decision theory that need neither: <b>Reject Option based Classification (ROC)</b> and <b>Discrimination-Aware Ensemble (DAE)</b>. Both only change how predictions are turned into labels, so they belong to the <b>post-processing</b> category. ROC works with any probabilistic classifier; DAE works with an ensemble of classifiers. <span class="check">[CHECK: Abstract + Introduction]</span></p>
+
+<h3>2. Fairness measure targeted</h3>
+<p>The paper measures discrimination as the difference in the probability of the positive (desirable) class between the favoured and the deprived group, disc = P(C+ | favoured) - P(C+ | deprived). This is the statistical / demographic parity difference; DP_Diff in this report is the same quantity with the opposite sign (AIF360 convention). The goal is to bring disc close to zero while losing as little accuracy as possible. <span class="check">[CHECK: definition of discrimination, problem-statement section]</span></p>
+
+<h3>3. The algorithm (ROC)</h3>
+<p>ROC exploits the region where the classifier is uncertain. For an instance X, the classifier gives p(C+|X). Instances whose confidence is low, max[p(C+|X), 1 - p(C+|X)] &le; &theta; with 0.5 &lt; &theta; &lt; 1, form the <b>critical region</b>. The intuition is that discriminatory decisions are most likely here, because the evidence for either class is weak. Inside the critical region, instances from the deprived group are assigned C+ and instances from the favoured group C-. Outside it, the standard rule (the class with the larger posterior) is used. A larger &theta; widens the region and removes more discrimination at the cost of more accuracy, so &theta; is the single control knob of the method and is chosen on validation data. <span class="check">[CHECK: ROC section, critical-region definition and the role of &theta;]</span></p>
+<p><b>Decision-theoretic view / special case.</b> The authors explain the rule as cost-sensitive classification: rejecting a deprived-group instance in the critical region (or accepting a favoured-group one) is given a higher misclassification cost, which shifts the decision boundary per group. With &theta; = 0.5 the critical region is empty and ROC reduces to the original classifier. <span class="check">[CHECK: cost interpretation, exact cost ratio in the paper]</span></p>
+<p><b>DAE.</b> The second method builds an ensemble; the instances on which the ensemble members disagree play the role of the critical region and are labelled in favour of the deprived group. The amount of disagreement, and therefore the amount of correction, depends on how diverse the members are. <span class="check">[CHECK: DAE section]</span></p>
+
+<h3>4. Optimisation</h3>
+<p>ROC has no training-time optimisation: the base classifier is trained normally, and the only parameter, &theta;, is found by a search that trades off discrimination against accuracy. In the AIF360 implementation used as a reference here, the search runs over the classification threshold and the margin of the critical region, keeping the setting with the best balanced accuracy among those that satisfy a fairness bound on validation data. The method is therefore cheap: one scoring pass plus a small grid search.</p>
+
+<h3>5. Experiments in the paper</h3>
+<p>The methods are evaluated on standard discrimination-aware benchmarks (Adult census income with sex as sensitive attribute, and further real-world datasets) with several base classifiers, and compared with earlier pre- and in-processing techniques. ROC reduces discrimination to (near) zero with a small accuracy loss and is competitive with or better than the earlier methods; trade-off curves show how accuracy and discrimination change with &theta;. <span class="check">[CHECK: datasets, classifiers and baselines in the Experiments section; fill in the exact names]</span></p>
+
+<h3>6. Strengths</h3>
+<p>(i) Model-agnostic: works on top of any probabilistic classifier, including an existing deployed model, without retraining or access to training data. (ii) Simple and interpretable: changes are confined to low-confidence instances, and the people affected can be identified. (iii) One parameter gives explicit control over the accuracy-fairness trade-off. (iv) Cheap to apply and to tune.</p>
+<h3>7. Limitations</h3>
+<p>(i) It needs the sensitive attribute at prediction time and treats groups differently on purpose (disparate treatment), which may be unlawful in some domains. (ii) It targets only demographic parity; error-rate measures (equalised odds) and calibration can get worse, and individual fairness drops because similar people in different groups receive different labels. (iii) It relies on well-calibrated scores; with a poorly calibrated model the critical region does not correspond to real uncertainty. (iv) It handles a binary sensitive attribute and binary label in its basic form. (v) &theta; is tuned on validation data, so the fairness guarantee holds only approximately on new data, especially for small groups (seen on German Credit below).</p>
+
+<div class="pb"></div>
+<h2>Part II - Evaluation on three datasets</h2>
+<h3>Setup</h3>
+<p>ROC was implemented from its definition (AIF360 and Fairlearn were not available on the compute), with unit tests on small examples with known answers. Datasets: <b>Adult</b> (30,162 rows after removing "?"; S = sex, male privileged; Y = income &gt; 50K), <b>German Credit</b> (1,000 rows; S = age &gt; 25 privileged; Y = good credit), <b>COMPAS</b> (ProPublica/FairML, 6,172 rows; S = non-African-American privileged; Y = no two-year recidivism; the COMPAS score is excluded). Fairness of the original labels was measured on the full data before any model was trained. Each dataset was split 70/30 (stratified on label &times; group); the training part was split again 70/30 into a fit and a validation set. A logistic regression is trained on the fit set (baseline, threshold 0.5); ROC's threshold &theta; and critical-region half-width &omega; are tuned on the validation set (maximise balanced accuracy subject to |DP_Diff| &le; 0.05) and then applied to the test-set scores. Everything is repeated for 5 seeds.</p>
+<p class="note">DP_Diff = P(&#374;=1|unpriv) - P(&#374;=1|priv) (0 fair); DIR = P(&#374;=1|unpriv)/P(&#374;=1|priv) (1 fair, 0.8-1.25 acceptable); Consistency = 1 - mean |&ycirc;<sub>i</sub> - mean &ycirc; of the 5 nearest neighbours| (1 = similar individuals get similar labels).</p>
+
+<h3>Results (test set, mean &plusmn; std over 5 seeds)</h3>
+<table>
+<tr><th>Dataset</th><th>Stage</th><th>DP_Diff</th><th>DIR</th><th>Consistency</th><th>Accuracy</th><th>Bal. acc.</th><th>F1</th></tr>
+<tr><td class="l" rowspan="3">Adult</td><td class="l">Original labels</td><td>-0.200</td><td>0.362</td><td>0.805</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td class="l">Baseline LR</td><td>-0.187 &plusmn; .006</td><td>0.304 &plusmn; .008</td><td>0.946</td><td>0.848</td><td>0.769</td><td>0.667</td></tr>
+<tr><td class="l"><b>ROC</b></td><td><b>-0.047 &plusmn; .011</b></td><td><b>0.874 &plusmn; .032</b></td><td>0.898</td><td>0.787</td><td>0.788</td><td>0.649</td></tr>
+<tr><td class="l" rowspan="3">German</td><td class="l">Original labels</td><td>-0.149</td><td>0.795</td><td>0.675</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td class="l">Baseline LR</td><td>-0.092 &plusmn; .059</td><td>0.884 &plusmn; .077</td><td>0.772</td><td>0.751</td><td>0.665</td><td>0.831</td></tr>
+<tr><td class="l"><b>ROC</b></td><td><b>+0.037 &plusmn; .094</b></td><td><b>1.055 &plusmn; .154</b></td><td>0.693</td><td>0.721</td><td>0.706</td><td>0.788</td></tr>
+<tr><td class="l" rowspan="3">COMPAS</td><td class="l">Original labels</td><td>-0.140</td><td>0.773</td><td>0.603</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td class="l">Baseline LR</td><td>-0.265 &plusmn; .032</td><td>0.651 &plusmn; .035</td><td>0.987</td><td>0.671</td><td>0.662</td><td>0.718</td></tr>
+<tr><td class="l"><b>ROC</b></td><td><b>-0.067 &plusmn; .041</b></td><td><b>0.879 &plusmn; .072</b></td><td>0.908</td><td>0.658</td><td>0.657</td><td>0.677</td></tr>
+</table>
+<p class="note">Tuned parameters (mean over seeds): Adult &theta; = 0.22, &omega; = 0.13; German &theta; = 0.65, &omega; = 0.07; COMPAS &theta; = 0.56, &omega; = 0.06. The validation bound was met in all 15 runs. Figure: <code>roc_before_after.png</code> (produced by the notebook).</p>
+
+<h3>Discussion</h3>
+<p><b>Before mitigation.</b> All three label sets are biased against the unprivileged group: on Adult women have a 20-point lower rate of high income (DIR 0.36, far outside 0.8-1.25); on German and COMPAS the gap is about 14-15 points, with DIR just below 0.8. The unmitigated classifier does not remove this and on Adult and COMPAS amplifies it (COMPAS DP_Diff -0.14 in the labels becomes -0.27 in the predictions, Adult DIR falls from 0.36 to 0.30), because the model concentrates on features correlated with the group even though S itself is not an input.</p>
+<p><b>After mitigation.</b> ROC strongly improves group fairness on every dataset. Adult: |DP_Diff| drops from 0.187 to 0.047 and DIR rises from 0.30 to 0.87, inside the acceptable range for every seed. COMPAS: DP_Diff -0.265 &rarr; -0.067, DIR 0.65 &rarr; 0.88. German: the mean gap is removed (DIR 1.06), but the variance is large (DP_Diff between -0.08 and +0.14 over seeds): the validation set contains only about 40 unprivileged applicants, so the &theta;/&omega; chosen there does not transfer reliably, and in some seeds the correction overshoots in favour of the young group. This is the limitation noted in Part I: a post-processing rule tuned on a small validation set gives only an approximate guarantee on new data.</p>
+<p><b>Cost.</b> Balanced accuracy is unchanged or higher (Adult +1.9, German +4.1, COMPAS -0.5 points), while accuracy falls (Adult -6.1, German -3.0, COMPAS -1.3 points) and F1 falls by 2-4 points. On Adult most of the accuracy loss comes from the tuned threshold (&theta; = 0.22 instead of 0.5), which predicts the minority positive class more often; this is a consequence of using balanced accuracy as the selection criterion. <b>Consistency</b> decreases after ROC on all datasets (e.g. Adult 0.946 &rarr; 0.898): ROC deliberately gives different labels to similar people from different groups, so better group fairness is bought with lower individual fairness. Consistency of the original labels is lower than that of any model, because a classifier smooths the label noise of the raw data.</p>
+<p><b>Conclusion.</b> Reject Option Classification is an effective and cheap post-processing method for demographic parity: it brought DIR into or close to the 0.8-1.25 band on all three datasets without retraining, at a moderate accuracy cost and with stable balanced accuracy. Its weak points are the need for the sensitive attribute at prediction time, the drop in individual fairness, and unstable behaviour on small datasets.</p>
+
+<h3>Parameter settings</h3>
+<table>
+<tr><th>Parameter</th><th>Value</th></tr>
+<tr><td class="l">Classifier</td><td class="l">Logistic regression, L2, C = 1.0, lbfgs, max_iter = 2000; S not used as a feature</td></tr>
+<tr><td class="l">Encoding</td><td class="l">One-hot (categorical), standardisation (numerical), fitted on the fit split</td></tr>
+<tr><td class="l">Splits</td><td class="l">Train/test 70/30 stratified on Y &times; S; train &rarr; fit/validation 70/30 (stratified)</td></tr>
+<tr><td class="l">ROC search</td><td class="l">&theta; &isin; [0.05, 0.95] step 0.01, &omega; &isin; [0, 0.5] step 0.01; max balanced accuracy s.t. |DP_Diff| &le; 0.05 on validation</td></tr>
+<tr><td class="l">Consistency</td><td class="l">k = 5 nearest neighbours, encoded features</td></tr>
+<tr><td class="l">Seeds</td><td class="l">0, 1, 2, 3, 42</td></tr>
+<tr><td class="l">Data cleaning</td><td class="l">Adult: "?" rows removed, education and fnlwgt dropped; COMPAS: score_factor excluded</td></tr>
+</table>
+</body></html>
